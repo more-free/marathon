@@ -2149,6 +2149,9 @@ Transfer-Encoding: chunked
     "queue": [
         {
             "count" : 10,
+            "delay": {
+              "overdue": "true"
+            }
             "app" : {
                 "cmd" : "tail -f /dev/null",
                 "backoffSeconds" : 1,
