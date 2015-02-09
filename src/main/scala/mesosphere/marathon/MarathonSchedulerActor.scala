@@ -124,9 +124,9 @@ class MarathonSchedulerActor(
     case ReconcileHealthChecks =>
       scheduler.reconcileHealthChecks()
 
-    case cmd @ ScaleApp(appId) =>
+    case cmd @ ScaleApp(appId, force) =>
       val origSender = sender()
-      performAsyncWithLockFor(appId, origSender, cmd, blocking = false) {
+      performAsyncWithLockFor(appId, origSender, cmd, blocking = force) {
         val res = scheduler.scale(driver, appId)
 
         if (origSender != context.system.deadLetters)
@@ -163,7 +163,10 @@ class MarathonSchedulerActor(
               .getOrElse(Future.successful(()))
           } yield ()
         }
-        else promise.future
+        else promise.future andThen {
+          case _ =>
+            self ! ScaleApp(appId, force = true)
+        }
 
         res.sendAnswer(origSender, cmd)
       }
@@ -300,7 +303,7 @@ object MarathonSchedulerActor {
 
   case object ReconcileHealthChecks
 
-  case class ScaleApp(appId: PathId) extends Command {
+  case class ScaleApp(appId: PathId, force: Boolean = false) extends Command {
     def answer: Event = AppScaled(appId)
   }
 
