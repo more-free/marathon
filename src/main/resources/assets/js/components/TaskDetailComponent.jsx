@@ -67,7 +67,7 @@ var TaskDetailComponent = React.createClass({
     }
 
     return (
-      <div>
+      <div className="page-body page-body-no-top">
         <h5>Task Details</h5>
         {hasError ?
           <p className="text-center text-danger">

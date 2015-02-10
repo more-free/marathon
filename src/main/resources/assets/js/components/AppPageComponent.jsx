@@ -3,7 +3,6 @@
 var React = require("react/addons");
 var AppVersionListComponent = require("../components/AppVersionListComponent");
 var PageComponent = require("../components/PageComponent");
-var StackedViewComponent = require("../components/StackedViewComponent");
 var TabPaneComponent = require("../components/TabPaneComponent");
 var TaskDetailComponent = require("../components/TaskDetailComponent");
 var TaskViewComponent = require("../components/TaskViewComponent");
@@ -124,9 +123,21 @@ var AppPageComponent = React.createClass({
 
   getBreadcrumbs: function () {
     var activeTask = this.props.activeTask;
+    var model = this.props.model;
+    var statusClassSet = React.addons.classSet({
+      "text-warning": model.isDeploying()
+    });
 
     /* jshint trailing:false, quotmark:false, newcap:false */
     /* jscs:disable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+    var status = (
+      <ul className="list-inline list-inline-subtext list-inline-smaller">
+        <li>
+          <span className={statusClassSet}>{model.getStatus()}</span>
+        </li>
+      </ul>
+    );
+
     var breadcrumbs = [(
       <li key="apps"><a href="#" onClick={this.props.onDestroy}>Apps</a></li>
     )];
@@ -134,20 +145,24 @@ var AppPageComponent = React.createClass({
     if (this.state.activeViewIndex === 0) {
       breadcrumbs.push((
         <li className="active" key="app">
-          {this.props.model.get("id")}
+          {model.get("id")}
+          {status}
         </li>
       ));
     } else {
       breadcrumbs.push((
         <li key="app">
           <a href="#" onClick={this.showTaskList}>
-            {this.props.model.get("id")}
+            {model.get("id")}
           </a>
         </li>
       ));
 
       breadcrumbs.push((
-        <li className="active" key="task">{activeTask.get("id")}</li>
+        <li className="active" key="task">
+          {activeTask.get("id")}
+          {status}
+        </li>
       ));
     }
 
@@ -160,15 +175,96 @@ var AppPageComponent = React.createClass({
     /* jscs:enable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
   },
 
-  render: function () {
+  getControls: function () {
+    if (this.state.activeViewIndex !== 0) {
+      return null;
+    }
+
+    /* jshint trailing:false, quotmark:false, newcap:false */
+    /* jscs:disable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+    return (
+      <div className="header-btn">
+        <button className="btn btn-sm btn-default"
+            onClick={this.props.suspendApp}
+            disabled={this.props.model.get("instances") < 1}>
+          Suspend
+        </button>
+        <button className="btn btn-sm btn-default" onClick={this.scaleApp}>
+          Scale
+        </button>
+        <button className="btn btn-sm btn-danger pull-right" onClick={this.handleDestroyApp}>
+          Destroy App
+        </button>
+      </div>
+    );
+    /* jshint trailing:true, quotmark:true, newcap:true */
+    /* jscs:enable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+  },
+
+  getTaskDetailComponent: function () {
     var model = this.props.model;
-
-    var statusClassSet = React.addons.classSet({
-      "text-warning": model.isDeploying()
-    });
-
     var hasHealth = model.get("healthChecks") != null &&
       model.get("healthChecks").length > 0;
+
+    /* jshint trailing:false, quotmark:false, newcap:false */
+    /* jscs:disable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+    return (
+      <TaskDetailComponent
+        fetchState={this.props.tasksFetchState}
+        taskHealthMessage={model.formatTaskHealthMessage(this.props.activeTask)}
+        hasHealth={hasHealth}
+        onShowTaskList={this.showTaskList}
+        task={this.props.activeTask} />
+    );
+    /* jshint trailing:true, quotmark:true, newcap:true */
+    /* jscs:enable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+  },
+
+  getAppDetails: function () {
+    var model = this.props.model;
+    var hasHealth = model.get("healthChecks") != null &&
+      model.get("healthChecks").length > 0;
+
+    /* jshint trailing:false, quotmark:false, newcap:false */
+    /* jscs:disable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+    return (
+      <TogglableTabsComponent className="page-body page-body-no-top"
+          activeTabId={this.state.activeTabId}
+          onTabClick={this.onTabClick}
+          tabs={tabs} >
+        <TabPaneComponent id="tasks">
+          <TaskViewComponent
+            collection={model.tasks}
+            fetchState={this.props.tasksFetchState}
+            fetchTasks={this.props.fetchTasks}
+            formatTaskHealthMessage={model.formatTaskHealthMessage}
+            hasHealth={hasHealth}
+            onTasksKilled={this.props.onTasksKilled}
+            onTaskDetailSelect={this.showTaskDetails} />
+        </TabPaneComponent>
+        <TabPaneComponent
+          id="configuration"
+          onActivate={this.props.fetchAppVersions} >
+          <AppVersionListComponent
+            app={model}
+            fetchAppVersions={this.props.fetchAppVersions}
+            fetchState={this.props.appVersionsFetchState}
+            onRollback={this.props.rollBackApp} />
+        </TabPaneComponent>
+      </TogglableTabsComponent>
+    );
+    /* jshint trailing:true, quotmark:true, newcap:true */
+    /* jscs:enable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
+  },
+
+  render: function () {
+    var content;
+
+    if (this.state.activeViewIndex === 0) {
+      content = this.getAppDetails();
+    } else if (this.state.activeViewIndex === 1)  {
+      content = this.getTaskDetailComponent();
+    }
 
     /* jshint trailing:false, quotmark:false, newcap:false */
     /* jscs:disable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
@@ -177,61 +273,13 @@ var AppPageComponent = React.createClass({
         size="lg">
         <div className="page-header">
           {this.getBreadcrumbs()}
-          <span className="h3 page-title">{model.get("id")}</span>
-          <ul className="list-inline list-inline-subtext">
-            <li>
-              <span className={statusClassSet}>{model.getStatus()}</span>
-            </li>
-          </ul>
-          <div className="header-btn">
-            <button className="btn btn-sm btn-default"
-                onClick={this.props.suspendApp}
-                disabled={model.get("instances") < 1}>
-              Suspend
-            </button>
-            <button className="btn btn-sm btn-default" onClick={this.scaleApp}>
-              Scale
-            </button>
-            <button className="btn btn-sm btn-danger pull-right" onClick={this.handleDestroyApp}>
-              Destroy App
-            </button>
-          </div>
+          {this.getControls()}
         </div>
-        <TogglableTabsComponent className="page-body page-body-no-top"
-            activeTabId={this.state.activeTabId}
-            onTabClick={this.onTabClick}
-            tabs={tabs} >
-          <TabPaneComponent id="tasks">
-            <StackedViewComponent
-              activeViewIndex={this.state.activeViewIndex}>
-              <TaskViewComponent
-                collection={model.tasks}
-                fetchState={this.props.tasksFetchState}
-                fetchTasks={this.props.fetchTasks}
-                formatTaskHealthMessage={model.formatTaskHealthMessage}
-                hasHealth={hasHealth}
-                onTasksKilled={this.props.onTasksKilled}
-                onTaskDetailSelect={this.showTaskDetails} />
-              <TaskDetailComponent
-                fetchState={this.props.tasksFetchState}
-                taskHealthMessage={model.formatTaskHealthMessage(this.props.activeTask)}
-                hasHealth={hasHealth}
-                onShowTaskList={this.showTaskList}
-                task={this.props.activeTask} />
-            </StackedViewComponent>
-          </TabPaneComponent>
-          <TabPaneComponent
-            id="configuration"
-            onActivate={this.props.fetchAppVersions} >
-            <AppVersionListComponent
-              app={model}
-              fetchAppVersions={this.props.fetchAppVersions}
-              fetchState={this.props.appVersionsFetchState}
-              onRollback={this.props.rollBackApp} />
-          </TabPaneComponent>
-        </TogglableTabsComponent>
+        {content}
       </PageComponent>
     );
+    /* jshint trailing:true, quotmark:true, newcap:true */
+    /* jscs:enable disallowTrailingWhitespace, validateQuoteMarks, maximumLineLength */
   }
 });
 
